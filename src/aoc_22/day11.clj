@@ -9,22 +9,16 @@
   (read-string (re-find #"[0-9]+" string)))
 
 (defn read-block [block]
-  (let [lines (str/split-lines block)
-        [monkey items op test if-true if-false] lines
-        monkey-idx (extract-num monkey)
-        divisible-by (extract-num test)
-        starting-items (mapv read-string (re-seq #"[0-9]+" items))
-        [operation arg] (drop 6 (str/split op #" "))
-        if-true-target (extract-num if-true)
-        if-false-target (extract-num if-false)]
-    {:monkey monkey-idx
-     :items starting-items
+  (let [[monkey items op test if-true if-false] (str/split-lines block)
+        [operation arg] (drop 6 (str/split op #" "))]
+    {:monkey (extract-num monkey)
+     :items (mapv read-string (re-seq #"[0-9]+" items))
      :operation-fn #((case operation
                        "*" *
                        "+" +) % (case arg "old" % (read-string arg)))
-     :test-fn #(zero? (mod % divisible-by))
-     :if-true-target if-true-target
-     :if-false-target if-false-target
+     :test-fn #(zero? (extract-num test))
+     :if-true-target (extract-num if-true)
+     :if-false-target (extract-num if-false)
      :thrown-cnt 0}))
 
 (defn throw-item [monkey-idx state]
