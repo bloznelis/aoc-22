@@ -59,14 +59,11 @@ Monkey 3:
      :items starting-items
      :operation-fn #((case operation
                        "*" *
-                       "+" +) % (read-string arg))
+                       "+" +) % (case arg "old" % (read-string arg)))
      :test-fn #(zero? (mod % divisible-by))
      :if-true-target if-true-target
-     :if-false-target if-false-target}))
-
-(read-block input-block)
-
-(def state (into {} (map #(vector (:monkey %) %) (map read-block (utils/parse-blocks test-input)))))
+     :if-false-target if-false-target
+     :thrown-cnt 0}))
 
 (defn single-item [monkey-idx state]
   (let [monkey (state monkey-idx)
@@ -78,27 +75,43 @@ Monkey 3:
     (-> state
         (update-in [throw-target :items] conj worry-after)
         (update-in
-         [(:monkey monkey) :items] #(into [] (rest %))))))
+         [(:monkey monkey) :items] #(into [] (rest %)))
 
-(rest [1 2 3])
-
-(into [] (rest [1 2 3]))
-
-(single-item 0 state)
+        (update-in [(:monkey monkey) :thrown-cnt] inc))))
 
 (defn turn [state monkey-idx]
   (loop [current-state state]
+    (println "helo")
     (if (empty? (:items (current-state monkey-idx)))
-      state
-      (recur  (single-item monkey-idx current-state)))))
+      current-state
+      (recur (single-item monkey-idx current-state)))))
 
 (defn one-round [state]
   (reduce turn state (range (count state))))
 
-((:operation-fn (state 1)) 4)
+(comment
+  (def real-input (slurp "/home/lukas/code/aoc-22/input/day11.txt"))
+  ((:operation-fn (state 1)) 4)
 
-state
+  (range 1)
 
-(into {} (map #(vector (:monkey %) %) (map read-block (utils/parse-blocks test-input))))
+  state
 
-(one-round (into {} (map #(vector (:monkey %) %) (map read-block (utils/parse-blocks test-input)))))
+  (into {} (map #(vector (:monkey %) %) (map read-block (utils/parse-blocks test-input))))
+
+  (defn run-rounds [amount state]
+    (if (zero? amount)
+      state
+      (run-rounds (dec amount) (one-round state))))
+
+  (->> real-input
+       utils/parse-blocks
+       (map read-block)
+       (map #(vector (:monkey %) %))
+       (into {})
+       (run-rounds 20)
+       vals
+       (map :thrown-cnt)
+       sort
+       (take-last 2)
+       (apply *)))
