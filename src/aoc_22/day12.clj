@@ -28,6 +28,47 @@
        (map (fn [[coords height]] {coords {:height height, :neighbours (valid-neighbours coords matrix)}}))
        (into {})))
 
+(defn make-priority-queue-2 [m]
+  (into (sorted-set-by compare) m))
+
+(defn make-priority-queue-3 [results]
+(into (sorted-map-by (fn [key1 key2]
+                         (compare [(get results key1) key1]
+                                  [(get results key2) key2]
+                                  )))
+        results))
+
+(defn prepare-state [origin target matrix]
+  {:visited []
+   :unvisited (make-priority-queue-3 (map #(vector (if (= % origin) 0 Long/MAX_VALUE) %) (keys matrix)))
+   :distances (into {} (map #(vector % (if (= % origin) 0 Long/MAX_VALUE)) (keys matrix)))
+   :origin origin
+   :target target
+   :matrix matrix})
+
+(defn make-state [input]
+  (let [{start :start, end :end, height-map :height-map} (find-start-end (to-matrix-map input))]
+
+    (prepare-state start end height-map)))
+
+(defn lookup-neighs [state neighs current-distance]
+  (let [neigh-distances (into {} (map #(vector % (inc current-distance)) neighs))
+        unvisited-update (map #((second %) (first %)) neigh-distances)]
+
+    (-> state
+        (update :distances conj neigh-distances)
+        (update :unvisited #(apply conj %) unvisited-update)
+        (update :)
+
+        )))
+
+(defn search [state]
+  (loop [current-node (first (:unvisited state))
+         neighs (get-in state [:matrix current-node :neighbours])]
+    (if (= current-node (:target state))
+      (get-in state [:distances (:target state)])
+      ())))
+
 (comment
   (def test-input "Sabqponm
 abcryxxl
@@ -35,8 +76,11 @@ accszExk
 acctuvwj
 abdefghi")
 
-;; do I need to attach neighbours as part of each node information or
-  ;; can it be found ad-hoc?
+  (conj {:A 10, :B 4} {:C 2, :A 2})
+
+  (def real-input (slurp "/home/lukas/code/clojure/aoc-22/input/day12.txt"))
+
+  (make-state test-input)
 
   (attach-neighbours (:height-map (find-start-end (to-matrix-map test-input))))
 
@@ -47,11 +91,10 @@ abdefghi")
   (char 83)
   (int (read-string "a"))
 
-  (defn make-priority-queue-2 [m]
-    (into (sorted-set-by compare) m))
+  (into (sorted-map-by))
 
   (def priority-queue
-    (make-priority-queue-2 [[2 :A] [2 :B] [1 :D]]))
+    (make-priority-queue-3 {:A 2, :B 3, :C 1}))
 
   priority-queue
 ;; => #{[2 :C] [5 :A] [10 :B]}
@@ -59,7 +102,9 @@ abdefghi")
 ;; => [2 :C]
   (rest priority-queue)
 ;; => ([5 :A] [10 :B])
-  (conj priority-queue [0 :C])
+  (assoc priority-queue :B 1 )
+  (make-priority-queue-3 (apply conj priority-queue [[:C 1] [:B 1]]))
+
 ;; => #{[2 :C] [4 :X] [5 :A] [10 :B] [11 :D]}
   (read-string "[[1],[2,3,4]]")
 ;; => [[1] [2 3 4]]
