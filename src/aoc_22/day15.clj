@@ -1,23 +1,6 @@
 (ns aoc-22.day15
-  (:require [clojure.string :as str]))
-
-(def test-input "Sensor at x=2, y=18: closest beacon is at x=-2, y=15
-Sensor at x=9, y=16: closest beacon is at x=10, y=16
-Sensor at x=13, y=2: closest beacon is at x=15, y=3
-Sensor at x=12, y=14: closest beacon is at x=10, y=16
-Sensor at x=10, y=20: closest beacon is at x=10, y=16
-Sensor at x=14, y=17: closest beacon is at x=10, y=16
-Sensor at x=8, y=7: closest beacon is at x=2, y=10
-Sensor at x=2, y=0: closest beacon is at x=2, y=10
-Sensor at x=0, y=11: closest beacon is at x=2, y=10
-Sensor at x=20, y=14: closest beacon is at x=25, y=17
-Sensor at x=17, y=20: closest beacon is at x=21, y=22
-Sensor at x=16, y=7: closest beacon is at x=15, y=3
-Sensor at x=14, y=3: closest beacon is at x=15, y=3
-Sensor at x=20, y=1: closest beacon is at x=15, y=3")
-
-(def test-line "Sensor at x=2, y=18: closest beacon is at x=-2, y=15")
-(def real-input (slurp "/home/lukas/code/clojure/aoc-22/input/day15.txt"))
+  (:require [clojure.string :as str]
+            [clojure.set :as s]))
 
 (defn manhatan-dist [[x1 y1] [x2 y2]]
   (+ (abs (- x1 x2)) (abs (- y1 y2))))
@@ -54,10 +37,7 @@ Sensor at x=20, y=1: closest beacon is at x=15, y=3")
     [x y]))
 
 (defn in-range-of-sensor [coords [sensor {sensor-range :dist}]]
-  (let [dist (manhatan-dist coords sensor)]
-    (<= dist sensor-range)))
-
-(vec {:a {:b :c}})
+  (<= (manhatan-dist coords sensor) sensor-range))
 
 (defn in-range-of-any-sensor [coords sensor-table]
   (loop [[head & tail] sensor-table]
@@ -65,8 +45,52 @@ Sensor at x=20, y=1: closest beacon is at x=15, y=3")
       false
       (if (in-range-of-sensor coords head) true (recur tail)))))
 
-;;don't forget existing beacons
-(defn compute [input at-y]
+(defn line-intersection-point-x [x1 y1 x2 y2 x3 y3 x4 y4]
+  (let [top (- (* (- (* x1 y2) (* y1 x2)) (- x3 x4)) (* (- x1 x2) (- (* x3 y4) (* y3 x4))))
+        bot (- (* (- x1 x2) (- y3 y4)) (* (- y1 y2) (- x3 x4)))]
+    (/ top bot)))
+
+(defn line-intersection-point-y [x1 y1 x2 y2 x3 y3 x4 y4]
+  (let [top (- (* (- (* x1 y2) (* y1 x2)) (- y3 y4)) (* (- y1 y2) (- (* x3 y4) (* y3 x4))))
+        bot (- (* (- x1 x2) (- y3 y4)) (* (- y1 y2) (- x3 x4)))]
+    (/ top bot)))
+
+(defn line-intersection-point [[x1 y1] [x2 y2] [x3 y3] [x4 y4]]
+  (try
+    [(line-intersection-point-x x1 y1 x2 y2 x3 y3 x4 y4) (line-intersection-point-y x1 y1 x2 y2 x3 y3 x4 y4)]
+    (catch Exception _ :parallel)))
+
+(defn get-lines [[[sensor-x sensor-y] {dist :dist}]]
+  (let [north [sensor-x (- sensor-y (inc dist))]
+        east [(+ sensor-x (inc dist)) sensor-y]
+        south [sensor-x (+ sensor-y (inc dist))]
+        west [(- sensor-x (inc dist)) sensor-y]]
+
+    [[north east] [east south] [north west] [west south]]))
+
+(defn intersection [[point1 point2] all-lines]
+  (into #{} (mapcat (fn [[point3 point4]]
+                      (let [result (line-intersection-point point1 point2 point3 point4)]
+                        (case result
+                          :parallel #{}
+                          (if (and
+                               (integer? (first result))
+                               (integer? (second result))
+                               (<= 0 (first result))
+                               (<= 0 (second result))
+                               (> 4000001 (first result))
+                               (> 4000001 (second result)))
+                            #{result}
+                            #{})))) all-lines)))
+
+(defn line-intersections [lines]
+  (loop [[head & tail] lines
+         intersections #{}]
+    (if (nil? head)
+      intersections
+      (recur tail (s/union intersections (intersection head lines))))))
+
+(defn p1 [input at-y]
   (let [sensor-table (vec (prepare-sensor-table input))
         beacons-cnt (count (into #{} (filter (fn [[_ y]] (= y at-y)) (map :beacon (vals sensor-table)))))
         coords (coords-to-check (find-max-x sensor-table) (find-min-x sensor-table) at-y)
@@ -74,14 +98,10 @@ Sensor at x=20, y=1: closest beacon is at x=15, y=3")
 
     (- cannot-exist-count beacons-cnt)))
 
-(comment
-  (compute real-input 2000000)
-;; => 4879972
-  (coords-to-check (find-max-x (prepare-sensor-table test-input)) (find-min-x (prepare-sensor-table test-input)) 10)
+(defn p2 [input]
+  (let [sensor-table (vec (prepare-sensor-table input))
+        coords-to-check (line-intersections (mapcat get-lines sensor-table))
+        [secret-beacon-x secret-beacon-y] (loop [[head & tail] coords-to-check]
+                                            (if (not (in-range-of-any-sensor head sensor-table)) head (recur tail)))]
 
-  (find-max-x (prepare-sensor-table test-input))
-  (first (vec (prepare-sensor-table test-input)))
-  (parse-line test-line)
-  (prepare-sensor-table test-input)
-
-  (manhatan-dist [8 7] [2 10]))
+    (+ (* secret-beacon-x 4000000) secret-beacon-y)))
